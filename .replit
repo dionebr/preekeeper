@@ -12,15 +12,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Bubble Tea Scanner"
+args = "Preekeeper Scanner"
 
 [[workflows.workflow]]
-name = "Bubble Tea Scanner"
+name = "Preekeeper Scanner"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "go run main.go"
+args = "go run main.go -u http://testphp.vulnweb.com -w wordlist.txt -t 10"
 
 [workflows.workflow.metadata]
 outputType = "console"
