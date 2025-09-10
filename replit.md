@@ -6,13 +6,18 @@ This is a professional-grade web directory scanner (similar to gobuster/dirb) bu
 
 **September 10, 2025**: Complete Preekeeper Scanner with Bubble Tea UI implementation
 - Integrated advanced Preekeeper scanner tool with stunning Bubble Tea interface
-- Implemented full-featured web directory scanner similar to gobuster
+- Implemented full-featured web directory scanner similar to gobuster/dirb
 - Added FastHTTP-based concurrent scanning with configurable threads
 - Created interactive TUI with real-time progress, results filtering, and controls
 - Supports wordlist scanning, extensions, status code filtering, recursion
 - Beautiful color-coded results display with scroll functionality
 - Added comprehensive filtering options (size, lines, regex)
-- Configured complete workflow for terminal-based scanning interface
+- Implemented complete CLI with 20+ professional flags and arguments
+- Added performance optimizations: rate limiting, proxy support, custom headers
+- Applied custom color palette as requested by user
+- Removed flag icon from banner as requested
+- Created comprehensive documentation with examples and troubleshooting
+- Configured workflow with proper CLI arguments for terminal-based scanning
 
 # User Preferences
 
