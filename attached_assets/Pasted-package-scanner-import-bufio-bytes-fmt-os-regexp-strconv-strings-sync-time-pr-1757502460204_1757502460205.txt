@@ -1,0 +1,370 @@
+package scanner
+
+import (
+"bufio"
+"bytes"
+"fmt"
+"os"
+"regexp"
+"strconv"
+"strings"
+"sync"
+"time"
+
+"preekeeper/utils"  
+
+"github.com/mattn/go-runewidth"  
+"github.com/valyala/fasthttp"  
+"golang.org/x/term"
+
+)
+
+type Result struct {
+Path   string
+Status int
+}
+
+var terminalMutex sync.Mutex
+var startTime time.Time
+
+type Job struct {
+URL   string
+Depth int
+}
+
+// Variáveis para progresso
+var (
+initialTotal    int
+processedCount  int
+foundCount      int
+recursionCount  int
+recursionActive bool
+currentPath     string
+progressMutex   sync.Mutex
+)
+
+func PrintBanner() {
+fmt.Println("[ Preekeeper/1.0 🐝 | Created by Dione Lima - Brazil 🏴‍☠ ]\n")
+}
+
+func getTerminalWidth() int {
+width, _, err := term.GetSize(int(os.Stdout.Fd()))
+if err != nil {
+return 80
+}
+return width
+}
+
+func truncate(s string, maxLen int) string {
+if runewidth.StringWidth(s) > maxLen {
+return s[:maxLen-3] + "..."
+}
+return s
+}
+
+func PrintHeader(cfg *utils.Config, foundCount int, rps float64, depth int, boxWidth int) {
+fmt.Print("\033[4;0H") // move cursor
+
+elapsed := time.Since(startTime)  
+elapsedStr := fmt.Sprintf("%02d:%02d:%02d",  
+	int(elapsed.Hours()),  
+	int(elapsed.Minutes())%60,  
+	int(elapsed.Seconds())%60,  
+)  
+
+borderTop := "┌" + strings.Repeat("─", boxWidth-2) + "┐"  
+borderBot := "└" + strings.Repeat("─", boxWidth-2) + "┘"  
+
+fmt.Println(borderTop)  
+
+printRow := func(key, value string) {  
+	line := fmt.Sprintf("│ %-12s : %-*s │", key, boxWidth-20, truncate(value, boxWidth-20))  
+	fmt.Println(line)  
+}  
+
+printRow("Target", cfg.URL)  
+printRow("Wordlist", cfg.Wordlist)  
+printRow("Threads", fmt.Sprintf("%d", cfg.Threads))  
+printRow("Method", cfg.Method)  
+printRow("Codes", cfg.StatusCodes)  
+if cfg.Recursion {  
+	printRow("Depth", fmt.Sprintf("%d/%d", depth, cfg.MaxDepth))  
+}  
+
+fmt.Println(borderBot)  
+
+statusLine := fmt.Sprintf("[+] Elapsed: %s | Found: %d | RPS: %.2f", elapsedStr, foundCount, rps)  
+fmt.Println(statusLine)  
+
+progressMutex.Lock()  
+cPath := currentPath  
+rActive := recursionActive  
+rCount := recursionCount  
+progressMutex.Unlock()  
+
+if cPath != "" {  
+	fmt.Printf("[>] Trying: %s\n", truncate(cPath, boxWidth-6))  
+}  
+if rActive {  
+	fmt.Printf("[↺] Recursion: %d additional directories scanned\n", rCount)  
+}
+
+}
+
+func setupUI() {
+terminalMutex.Lock()
+defer terminalMutex.Unlock()
+fmt.Print("\033[H\033[2J") // limpa
+fmt.Print("\033[?25l")     // oculta cursor
+PrintBanner()
+}
+
+func Run(cfg *utils.Config) []Result {
+startTime = time.Now()
+setupUI()
+
+// Status codes permitidos  
+statusCodes := make(map[int]bool)  
+for _, codeStr := range strings.Split(cfg.StatusCodes, ",") {  
+	code, _ := strconv.Atoi(codeStr)  
+	statusCodes[code] = true  
+}  
+
+var filterSize map[int]bool  
+if cfg.FilterSize != "" {  
+	filterSize = make(map[int]bool)  
+	for _, s := range strings.Split(cfg.FilterSize, ",") {  
+		size, _ := strconv.Atoi(s)  
+		filterSize[size] = true  
+	}  
+}  
+
+var filterLines map[int]bool  
+if cfg.FilterLines != "" {  
+	filterLines = make(map[int]bool)  
+	for _, l := range strings.Split(cfg.FilterLines, ",") {  
+		lines, _ := strconv.Atoi(l)  
+		filterLines[lines] = true  
+	}  
+}  
+
+var filterRegex *regexp.Regexp  
+if cfg.FilterRegex != "" {  
+	filterRegex, _ = regexp.Compile(cfg.FilterRegex)  
+}  
+
+// Wordlist  
+wordlist := []string{}  
+file, err := os.Open(cfg.Wordlist)  
+if err != nil {  
+	fmt.Println("Error opening wordlist:", err)  
+	os.Exit(1)  
+}  
+scanner := bufio.NewScanner(file)  
+for scanner.Scan() {  
+	wordlist = append(wordlist, scanner.Text())  
+}  
+file.Close()  
+
+var results []Result  
+var mu sync.Mutex  
+var producerWg sync.WaitGroup  
+
+ch := make(chan Job, cfg.Threads)  
+
+// Inicializa progresso  
+progressMutex.Lock()  
+initialTotal, processedCount, foundCount, recursionCount = 0, 0, 0, 0  
+recursionActive = false  
+progressMutex.Unlock()  
+
+// Produção de jobs  
+jobProducer := func(payloads []string, depth int) {  
+	defer producerWg.Done()  
+	for _, p := range payloads {  
+		ch <- Job{URL: p, Depth: depth}  
+		if depth == 0 {  
+			progressMutex.Lock()  
+			initialTotal++  
+			progressMutex.Unlock()  
+		}  
+	}  
+}  
+
+// Jobs iniciais  
+producerWg.Add(1)  
+go func() {  
+	initialPayloads := []string{}  
+	var extensions []string  
+	if cfg.Extensions != "" {  
+		extensions = strings.Split(cfg.Extensions, ",")  
+	}  
+	for _, word := range wordlist {  
+		initialPayloads = append(initialPayloads, word)  
+		for _, ext := range extensions {  
+			initialPayloads = append(initialPayloads, word+ext)  
+		}  
+	}  
+	jobProducer(initialPayloads, 0)  
+}()  
+
+// UI refresher  
+uiTicker := time.NewTicker(300 * time.Millisecond)  
+defer uiTicker.Stop()  
+go func() {  
+	for range uiTicker.C {  
+		progressMutex.Lock()  
+		pCount, fCount, iTotal := processedCount, foundCount, initialTotal  
+		progressMutex.Unlock()  
+
+		elapsedSeconds := time.Since(startTime).Seconds()  
+		var rps float64  
+		if elapsedSeconds > 0 {  
+			rps = float64(pCount) / elapsedSeconds  
+		}  
+
+		terminalMutex.Lock()  
+		boxWidth := getTerminalWidth() - 2  
+		PrintHeader(cfg, fCount, rps, 0, boxWidth)  
+		terminalMutex.Unlock()  
+	}  
+}()  
+
+// Workers  
+var workerWg sync.WaitGroup  
+workerWg.Add(cfg.Threads)  
+for i := 0; i < cfg.Threads; i++ {  
+	go func() {  
+		client := utils.NewFastHTTPClient(cfg)  
+		req := fasthttp.AcquireRequest()  
+		resp := fasthttp.AcquireResponse()  
+		defer fasthttp.ReleaseRequest(req)  
+		defer fasthttp.ReleaseResponse(resp)  
+
+		req.Header.SetMethod(cfg.Method)  
+		req.Header.Set("User-Agent", "Preekeeper/1.0 🐝")  
+		for _, h := range cfg.Headers {  
+			parts := strings.SplitN(h, ":", 2)  
+			if len(parts) == 2 {  
+				req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))  
+			}  
+		}  
+
+		for job := range ch {  
+			progressMutex.Lock()  
+			processedCount++  
+			progressMutex.Unlock()  
+
+			if cfg.Delay > 0 {  
+				time.Sleep(time.Duration(cfg.Delay) * time.Millisecond)  
+			}  
+
+			var url string  
+			if strings.Contains(job.URL, "://") {  
+				url = job.URL  
+			} else if strings.Contains(cfg.URL, "FUZZ") {  
+				url = strings.Replace(cfg.URL, "FUZZ", job.URL, 1)  
+			} else {  
+				url = fmt.Sprintf("%s/%s", strings.TrimRight(cfg.URL, "/"), job.URL)  
+			}  
+			req.SetRequestURI(url)  
+			progressMutex.Lock()  
+			currentPath = url  
+			progressMutex.Unlock()  
+
+			var err error  
+			for i := 0; i <= cfg.Retries; i++ {  
+				err = client.Do(req, resp)  
+				if err == nil {  
+					break  
+				}  
+				time.Sleep(50 * time.Millisecond)  
+			}  
+
+			if err == nil {  
+				body := resp.Body()  
+				lineCount := 0  
+				if filterLines != nil {  
+					lineCount = bytes.Count(body, []byte("\n"))  
+					if len(body) > 0 {  
+						lineCount++  
+					}  
+				}  
+
+				if !((filterSize != nil && filterSize[len(body)]) ||  
+					(filterLines != nil && filterLines[lineCount]) ||  
+					(filterRegex != nil && filterRegex.Match(body))) {  
+
+					statusCode := resp.StatusCode()  
+					if _, ok := statusCodes[statusCode]; ok {  
+						mu.Lock()  
+						results = append(results, Result{Path: url, Status: statusCode})  
+						progressMutex.Lock()  
+						foundCount++  
+						progressMutex.Unlock()  
+						mu.Unlock()  
+
+						terminalMutex.Lock()  
+						fmt.Printf("%s[%d]%s %s\n", GetStatusColor(statusCode), statusCode, Reset, url)  
+						terminalMutex.Unlock()  
+
+						// Recursão  
+						if cfg.Recursion && job.Depth < cfg.MaxDepth &&  
+							(strings.HasSuffix(url, "/") || statusCode == 301 || statusCode == 302) {  
+							progressMutex.Lock()  
+							recursionCount++  
+							recursionActive = true  
+							progressMutex.Unlock()  
+
+							producerWg.Add(1)  
+							go func(baseURL string, currentDepth int) {  
+								recursivePayloads := []string{}  
+								for _, word := range wordlist {  
+									recursivePayloads = append(recursivePayloads,  
+										fmt.Sprintf("%s/%s", strings.TrimRight(baseURL, "/"), word))  
+								}  
+								jobProducer(recursivePayloads, currentDepth+1)  
+							}(url, job.Depth)  
+						}  
+					}  
+				}  
+			}  
+		}  
+		workerWg.Done()  
+	}()  
+}  
+
+// Fechar jobs  
+go func() {  
+	producerWg.Wait()  
+	close(ch)  
+}()  
+
+workerWg.Wait()  
+uiTicker.Stop()  
+
+terminalMutex.Lock()  
+fmt.Print("\033[?25h") // mostra cursor  
+terminalMutex.Unlock()  
+
+return results
+
+}
+
+// Cores
+func GetStatusColor(status int) string {
+switch {
+case status >= 200 && status < 300:
+return "\033[32m"
+case status >= 300 && status < 400:
+return "\033[33m"
+case status >= 400 && status < 500:
+return "\033[35m"
+case status >= 500:
+return "\033[31m"
+default:
+return "\033[0m"
+}
+}
+
+var Reset = "\033[0m"

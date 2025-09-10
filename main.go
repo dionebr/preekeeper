@@ -98,26 +98,37 @@ type Model struct {
         wordlist       []string
 }
 
-// Estilos
+// Estilos com paleta personalizada
 var (
-        StatusOK        = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))   // verde
-        StatusRedirect  = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))   // amarelo  
-        StatusClient    = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))   // roxo
-        StatusServer    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))   // vermelho
-        StatusNeutral   = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))   // cinza
+        // Paleta de cores personalizada
+        LightGray    = lipgloss.Color("#cad4d9")  // Cinza claro
+        BeigeGray    = lipgloss.Color("#b4b2a7")  // Cinza-bege  
+        GrayBrown    = lipgloss.Color("#94866d")  // Marrom acinzentado
+        WoodBrown    = lipgloss.Color("#746142")  // Marrom madeira
+        DarkBrown    = lipgloss.Color("#42432e")  // Marrom escuro
+        BlackBrown   = lipgloss.Color("#1d1f10")  // Preto
         
-        HeaderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
-        BorderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
-        InfoStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
-        SuccessStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-        ErrorStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
-        ProgressStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+        // Status codes com nova paleta
+        StatusOK        = lipgloss.NewStyle().Foreground(GrayBrown).Bold(true)     // Success 2xx
+        StatusRedirect  = lipgloss.NewStyle().Foreground(WoodBrown).Bold(true)     // Redirect 3xx
+        StatusClient    = lipgloss.NewStyle().Foreground(DarkBrown).Bold(true)     // Client Error 4xx
+        StatusServer    = lipgloss.NewStyle().Foreground(BlackBrown).Bold(true)    // Server Error 5xx
+        StatusNeutral   = lipgloss.NewStyle().Foreground(BeigeGray)                // Outros
         
+        // UI Elements
+        HeaderStyle     = lipgloss.NewStyle().Foreground(DarkBrown).Bold(true)
+        BorderStyle     = lipgloss.NewStyle().Foreground(GrayBrown)
+        InfoStyle       = lipgloss.NewStyle().Foreground(BeigeGray)
+        SuccessStyle    = lipgloss.NewStyle().Foreground(GrayBrown).Bold(true)
+        ErrorStyle      = lipgloss.NewStyle().Foreground(BlackBrown).Bold(true)
+        ProgressStyle   = lipgloss.NewStyle().Foreground(WoodBrown).Bold(true)
+        
+        // Banner atualizado
         BannerStyle     = lipgloss.NewStyle().
-                                                Foreground(lipgloss.Color("5")).
+                                                Foreground(DarkBrown).
                                                 Bold(true).
                                                 Border(lipgloss.RoundedBorder()).
-                                                BorderForeground(lipgloss.Color("6")).
+                                                BorderForeground(WoodBrown).
                                                 Padding(0, 1)
 )
 
@@ -496,7 +507,7 @@ func (m *Model) View() string {
         var b strings.Builder
         
         // Banner
-        banner := BannerStyle.Render("Preekeeper Scanner 🐝 | Created by Dione Lima - Brazil 🏴‍☠")
+        banner := BannerStyle.Render("Preekeeper Scanner 🐝 | Created by Dione Lima - Brazil")
         b.WriteString(HeaderStyle.Render(banner))
         b.WriteString("\n\n")
         
