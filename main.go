@@ -17,6 +17,7 @@ import (
         "github.com/charmbracelet/lipgloss"
         "github.com/spf13/cobra"
         "github.com/valyala/fasthttp"
+        "github.com/valyala/fasthttp/fasthttpproxy"
 )
 
 // Config estrutura
@@ -103,6 +104,9 @@ type Model struct {
         showHelp       bool
         statusFilter   string
         
+        // Performance
+        rateLimiter    *RateLimiter
+        
         // Wordlist
         wordlist       []string
 }
@@ -148,13 +152,86 @@ type statsMsg Stats
 type scanCompleteMsg struct{}
 
 func NewFastHTTPClient(cfg *Config) *fasthttp.Client {
-        return &fasthttp.Client{
-                ReadTimeout:  time.Duration(cfg.Timeout) * time.Second,
-                WriteTimeout: time.Duration(cfg.Timeout) * time.Second,
+        client := &fasthttp.Client{
+                ReadTimeout:                time.Duration(cfg.Timeout) * time.Second,
+                WriteTimeout:               time.Duration(cfg.Timeout) * time.Second,
+                MaxIdleConnDuration:        time.Second * 30,
+                MaxConnsPerHost:            cfg.Threads * 2,
+                MaxConnDuration:            time.Second * 60,
+                MaxResponseBodySize:        1024 * 1024 * 10, // 10MB max response
+                ReadBufferSize:             4096,
+                WriteBufferSize:            4096,
+                MaxConnWaitTimeout:         time.Second * 5,
+                DisableHeaderNamesNormalizing: false,
+                DisablePathNormalizing:        false,
                 TLSConfig: &tls.Config{
                         InsecureSkipVerify: cfg.NoTLS,
+                        ClientSessionCache: tls.NewLRUClientSessionCache(100),
                 },
         }
+        
+        // Configure proxy if provided  
+        if cfg.Proxy != "" {
+                client.Dial = fasthttpproxy.FasthttpHTTPDialer(cfg.Proxy)
+        }
+        
+        return client
+}
+
+// Rate limiter structure
+type RateLimiter struct {
+        tokens chan struct{}
+        ticker *time.Ticker
+        stop   chan struct{}
+}
+
+func NewRateLimiter(rps int) *RateLimiter {
+        if rps <= 0 {
+                return nil // No rate limiting
+        }
+        
+        rl := &RateLimiter{
+                tokens: make(chan struct{}, rps),
+                ticker: time.NewTicker(time.Second / time.Duration(rps)),
+                stop:   make(chan struct{}),
+        }
+        
+        // Fill initial tokens
+        for i := 0; i < rps; i++ {
+                rl.tokens <- struct{}{}
+        }
+        
+        // Refill tokens
+        go func() {
+                for {
+                        select {
+                        case <-rl.ticker.C:
+                                select {
+                                case rl.tokens <- struct{}{}:
+                                default:
+                                }
+                        case <-rl.stop:
+                                return
+                        }
+                }
+        }()
+        
+        return rl
+}
+
+func (rl *RateLimiter) Wait() {
+        if rl == nil {
+                return
+        }
+        <-rl.tokens
+}
+
+func (rl *RateLimiter) Stop() {
+        if rl == nil {
+                return
+        }
+        close(rl.stop)
+        rl.ticker.Stop()
 }
 
 func GetStatusColor(status int) lipgloss.Style {
@@ -327,6 +404,7 @@ func (m *Model) initializeScanner() {
                 FoundCount:     0,
                 RecursionCount: 0,
         }
+        m.rateLimiter = NewRateLimiter(m.config.RateLimit)
 }
 
 func (m *Model) runScanner() {
@@ -419,7 +497,12 @@ func (m *Model) worker(statusCodes map[int]bool, filterSize, filterLines map[int
         defer fasthttp.ReleaseResponse(resp)
         
         req.Header.SetMethod(m.config.Method)
-        req.Header.Set("User-Agent", "Preekeeper/1.0 🐝")
+        req.Header.Set("User-Agent", m.config.UserAgent)
+        
+        // Add cookies if provided
+        if m.config.Cookies != "" {
+                req.Header.Set("Cookie", m.config.Cookies)
+        }
         
         for _, h := range m.config.Headers {
                 parts := strings.SplitN(h, ":", 2)
@@ -447,6 +530,9 @@ func (m *Model) worker(statusCodes map[int]bool, filterSize, filterLines map[int
                         int(time.Since(m.startTime).Seconds())%60,
                 )
                 m.progressMu.Unlock()
+                
+                // Rate limiting
+                m.rateLimiter.Wait()
                 
                 if m.config.Delay > 0 {
                         time.Sleep(time.Duration(m.config.Delay) * time.Millisecond)
