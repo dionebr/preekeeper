@@ -5,6 +5,7 @@ import (
         "bytes"
         "crypto/tls"
         "fmt"
+        "log"
         "os"
         "regexp"
         "strconv"
@@ -14,6 +15,7 @@ import (
 
         tea "github.com/charmbracelet/bubbletea"
         "github.com/charmbracelet/lipgloss"
+        "github.com/spf13/cobra"
         "github.com/valyala/fasthttp"
 )
 
@@ -35,6 +37,13 @@ type Config struct {
         FilterLines string
         FilterRegex string
         NoTLS       bool
+        UserAgent   string
+        Cookies     string
+        Proxy       string
+        RateLimit   int
+        Silent      bool
+        Verbose     bool
+        OutputFile  string
 }
 
 // Result estrutura
@@ -711,31 +720,159 @@ func tickCmd() tea.Cmd {
         })
 }
 
-func main() {
-        // Configuração de exemplo
-        cfg := &Config{
-                URL:         "http://testphp.vulnweb.com",
-                Wordlist:    "wordlist.txt",
-                Threads:     10,
-                Method:      "GET",
-                StatusCodes: "200,301,302,403,500",
-                Extensions:  ".php,.html,.txt,.js",
-                Delay:       0,
-                Retries:     3,
-                Timeout:     10,
-                Recursion:   false,
-                MaxDepth:    2,
-                NoTLS:       true,
+// Variáveis globais para flags
+var (
+        url          string
+        wordlist     string
+        threads      int
+        method       string
+        statusCodes  string
+        extensions   string
+        headers      []string
+        delay        int
+        retries      int
+        timeout      int
+        recursion    bool
+        maxDepth     int
+        filterSize   string
+        filterLines  string
+        filterRegex  string
+        noTLS        bool
+        silent       bool
+        verbose      bool
+        outputFile   string
+        userAgent    string
+        cookies      string
+        proxy        string
+        rateLimit    int
+)
+
+var rootCmd = &cobra.Command{
+        Use:   "preekeeper",
+        Short: "Preekeeper - Advanced Web Directory Scanner",
+        Long: `Preekeeper Scanner 🐝
+Advanced web directory brute-force tool with Bubble Tea TUI interface.
+Created by Dione Lima - Brazil
+
+A fast and feature-rich directory scanner similar to gobuster and dirb,
+with a beautiful terminal user interface powered by Bubble Tea.`,
+        Example: `  preekeeper -u http://example.com -w wordlist.txt
+  preekeeper -u http://example.com -w wordlist.txt -t 50 -x .php,.html
+  preekeeper -u http://example.com -w wordlist.txt -r -d 3
+  preekeeper -u http://example.com/FUZZ -w wordlist.txt --mc 200,302`,
+        Run: runScanner,
+}
+
+func init() {
+        // URL flags
+        rootCmd.Flags().StringVarP(&url, "url", "u", "", "Target URL (required)")
+        rootCmd.MarkFlagRequired("url")
+        
+        // Wordlist flags
+        rootCmd.Flags().StringVarP(&wordlist, "wordlist", "w", "wordlist.txt", "Wordlist file path")
+        
+        // Performance flags
+        rootCmd.Flags().IntVarP(&threads, "threads", "t", 20, "Number of concurrent threads")
+        rootCmd.Flags().IntVar(&delay, "delay", 0, "Delay between requests in milliseconds")
+        rootCmd.Flags().IntVar(&timeout, "timeout", 10, "Request timeout in seconds")
+        rootCmd.Flags().IntVar(&retries, "retries", 3, "Number of retries on request failure")
+        rootCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "Rate limit requests per second (0 = unlimited)")
+        
+        // HTTP flags
+        rootCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method")
+        rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Preekeeper/1.0 🐝", "User agent string")
+        rootCmd.Flags().StringSliceVarP(&headers, "headers", "H", []string{}, "Custom headers (can be used multiple times)")
+        rootCmd.Flags().StringVar(&cookies, "cookies", "", "Cookies for requests")
+        rootCmd.Flags().StringVar(&proxy, "proxy", "", "Proxy URL (http://host:port)")
+        
+        // Status and filtering flags
+        rootCmd.Flags().StringVar(&statusCodes, "mc", "200,204,301,302,307,403,401,500", "Match status codes")
+        rootCmd.Flags().StringVar(&filterSize, "fs", "", "Filter by response size (comma separated)")
+        rootCmd.Flags().StringVar(&filterLines, "fl", "", "Filter by response lines (comma separated)")
+        rootCmd.Flags().StringVar(&filterRegex, "fr", "", "Filter responses by regex pattern")
+        
+        // Extension and recursion flags
+        rootCmd.Flags().StringVarP(&extensions, "extensions", "x", "", "File extensions (comma separated)")
+        rootCmd.Flags().BoolVarP(&recursion, "recursive", "r", false, "Enable recursive scanning")
+        rootCmd.Flags().IntVarP(&maxDepth, "depth", "d", 2, "Maximum recursion depth")
+        
+        // Security flags
+        rootCmd.Flags().BoolVar(&noTLS, "no-tls-validation", false, "Skip TLS certificate validation")
+        
+        // Output flags
+        rootCmd.Flags().BoolVarP(&silent, "silent", "s", false, "Silent mode (no banner)")
+        rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+        rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file for results")
+}
+
+func runScanner(cmd *cobra.Command, args []string) {
+        // Validar URL
+        if url == "" {
+                fmt.Println(ErrorStyle.Render("Error: URL is required. Use -u flag."))
+                os.Exit(1)
         }
         
-        // Criar modelo
+        // Validar wordlist
+        if _, err := os.Stat(wordlist); os.IsNotExist(err) {
+                fmt.Println(ErrorStyle.Render(fmt.Sprintf("Error: Wordlist file '%s' not found", wordlist)))
+                os.Exit(1)
+        }
+        
+        // Criar configuração
+        cfg := &Config{
+                URL:         url,
+                Wordlist:    wordlist,
+                Threads:     threads,
+                Method:      strings.ToUpper(method),
+                StatusCodes: statusCodes,
+                Extensions:  extensions,
+                Headers:     headers,
+                Delay:       delay,
+                Retries:     retries,
+                Timeout:     timeout,
+                Recursion:   recursion,
+                MaxDepth:    maxDepth,
+                FilterSize:  filterSize,
+                FilterLines: filterLines,
+                FilterRegex: filterRegex,
+                NoTLS:       noTLS,
+                UserAgent:   userAgent,
+                Cookies:     cookies,
+                Proxy:       proxy,
+                RateLimit:   rateLimit,
+                Silent:      silent,
+                Verbose:     verbose,
+                OutputFile:  outputFile,
+        }
+        
+        // Validações adicionais
+        if cfg.Threads > 100 {
+                fmt.Println(ErrorStyle.Render("Warning: High thread count (>100) may cause issues"))
+        }
+        
+        if cfg.Delay < 0 {
+                cfg.Delay = 0
+        }
+        
+        // Criar modelo e iniciar TUI
         model := NewModel(cfg)
         
-        // Iniciar programa
-        p := tea.NewProgram(model, tea.WithAltScreen())
+        // Configurar programa
+        var opts []tea.ProgramOption
+        if !silent {
+                opts = append(opts, tea.WithAltScreen())
+        }
+        
+        p := tea.NewProgram(model, opts...)
         
         if _, err := p.Run(); err != nil {
-                fmt.Printf("Erro ao executar o scanner: %v\n", err)
+                log.Fatalf("Error running scanner: %v", err)
+        }
+}
+
+func main() {
+        if err := rootCmd.Execute(); err != nil {
+                fmt.Println(ErrorStyle.Render(err.Error()))
                 os.Exit(1)
         }
 }
