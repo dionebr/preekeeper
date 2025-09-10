@@ -1,16 +1,18 @@
 # Overview
 
-This is a Go-based terminal user interface (TUI) application that creates a scanner interface similar to gobuster. The project uses the Bubble Tea framework for building interactive terminal applications and Lip Gloss for styling and visual formatting. The application simulates URL scanning and displays HTTP status codes in a colorful, interactive terminal interface.
+This is a professional-grade web directory scanner (similar to gobuster/dirb) built with Go and featuring an advanced Bubble Tea terminal interface. The Preekeeper Scanner combines powerful concurrent HTTP scanning capabilities with a beautiful, interactive TUI that provides real-time progress tracking, color-coded results, and comprehensive filtering options.
 
 # Recent Changes
 
-**September 10, 2025**: Complete Bubble Tea Scanner setup and deployment
-- Installed Go 1.24 language module
-- Created main.go with full TUI scanner implementation
-- Initialized Go module (bubbletea-scan) with required dependencies
-- Successfully installed Bubble Tea and Lip Gloss libraries
-- Configured and started "Bubble Tea Scanner" workflow
-- Application running successfully with colorful URL scan simulation
+**September 10, 2025**: Complete Preekeeper Scanner with Bubble Tea UI implementation
+- Integrated advanced Preekeeper scanner tool with stunning Bubble Tea interface
+- Implemented full-featured web directory scanner similar to gobuster
+- Added FastHTTP-based concurrent scanning with configurable threads
+- Created interactive TUI with real-time progress, results filtering, and controls
+- Supports wordlist scanning, extensions, status code filtering, recursion
+- Beautiful color-coded results display with scroll functionality
+- Added comprehensive filtering options (size, lines, regex)
+- Configured complete workflow for terminal-based scanning interface
 
 # User Preferences
 
