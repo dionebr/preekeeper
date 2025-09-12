@@ -1,4 +1,4 @@
-# Preekeeper Scanner 🐝
+# Preekeeper
 
 **Preekeeper** é um scanner de diretórios web profissional e de alta velocidade com interface TUI (Terminal User Interface) interativa, construído em Go usando Bubble Tea. Oferece funcionalidades comparáveis ao gobuster e dirb, mas com uma interface visual moderna e recursos avançados.
 
