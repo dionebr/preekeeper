@@ -1,6 +1,17 @@
 # Preekeeper
 
+**Version:** v1.1.0
+
 **Preekeeper** is a professional, high-speed web directory scanner with an interactive TUI (Terminal User Interface) built in Go using Bubble Tea. It offers features comparable to gobuster and dirb, but with a modern visual interface and advanced capabilities.
+
+## 📝 Changelog
+
+### v1.1.0
+- Feature: Technology detection (WappalyzerGo integration, CLI flag --tech)
+- Improvement: Encapsulated tech detection in interface for testability
+- Improvement: Robust error handling and user logs for tech detection
+- Docs: README fully translated to English
+- Refactor: Codebase ready for future releases and testing
 
 ## 🚀 Main Features
 
