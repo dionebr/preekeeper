@@ -1,10 +1,13 @@
 # Preekeeper
 
-**Version:** v1.1.0
+**Version:** v1.1.1
 
 **Preekeeper** is a professional, high-speed web directory scanner with an interactive TUI (Terminal User Interface) built in Go using Bubble Tea. It offers features comparable to gobuster and dirb, but with a modern visual interface and advanced capabilities.
 
 ## 📝 Changelog
+
+### v1.1.1
+- Fix: Gate technology detection logs behind the `--verbose` flag and write diagnostics to stderr (detection is silent by default)
 
 ### v1.1.0
 - Feature: Technology detection (advanced engine, CLI flag --tech)
@@ -151,6 +154,8 @@ go build -o preekeeper main.go
 
 When `--tech` is used the scanner will attempt to detect server/framework/OS information for the target.
 The detected technologies are stored and can be toggled in the TUI with the `t` key after a scan completes or when the scan is paused.
+
+Note: technology detection runs silently by default so it won't interfere with the TUI output. To see diagnostic messages from the detection engine enable verbose mode with `-v`/`--verbose`. When verbose is active, detection logs are written to stderr to avoid breaking the TUI rendering on stdout.
 
 ### Scanning with Authentication
 ```bash
