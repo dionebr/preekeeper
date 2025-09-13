@@ -13,6 +13,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	neturl "net/url"
 	"os"
@@ -55,6 +56,12 @@ type Config struct {
 	OutputFile  string
 	TechDetect  bool
 	Subdomain   bool
+	// When true, combine subdomains and paths (cartesian product). Very costly.
+	SubdomainPaths bool
+	// Try both http and https for each subdomain label when enabled.
+	TryBothSchemes bool
+	// Detect wildcard DNS and skip wildcard results when present.
+	WildcardDetect bool
 }
 
 // Result estrutura
@@ -80,6 +87,9 @@ type Stats struct {
 type Job struct {
 	URL   string
 	Depth int
+	// For subdomain fuzzing we may use Label and Path
+	Label string
+	Path  string
 }
 
 type scanState int
@@ -122,6 +132,9 @@ type Model struct {
 	// Detected technologies (populated after scan if enabled)
 	detectedTech map[string]string
 	showTech     bool
+	// Wildcard DNS detection cache per host
+	wildcardMu    sync.Mutex
+	wildcardCache map[string][]string
 }
 
 // Estilos com paleta personalizada
@@ -292,10 +305,11 @@ func GetStatusColor(status int) lipgloss.Style {
 
 func NewModel(cfg *Config) *Model {
 	return &Model{
-		config:      cfg,
-		state:       stateReady,
-		results:     []Result{},
-		stopChannel: make(chan bool),
+		config:        cfg,
+		state:         stateReady,
+		results:       []Result{},
+		stopChannel:   make(chan bool),
+		wildcardCache: make(map[string][]string),
 	}
 }
 
@@ -517,6 +531,57 @@ func (m *Model) runScanner() {
 	}
 }
 
+// detectAndCacheWildcard performs a naive wildcard DNS detection for the given host
+// It resolves a random non-existent subdomain and stores the IPs in the cache.
+func (m *Model) detectAndCacheWildcard(host string) {
+	m.wildcardMu.Lock()
+	defer m.wildcardMu.Unlock()
+	if _, ok := m.wildcardCache[host]; ok {
+		return
+	}
+
+	// Create a random label and resolve
+	label := fmt.Sprintf("zxy-%d", time.Now().UnixNano())
+	full := fmt.Sprintf("%s.%s", label, host)
+	ips, err := net.LookupHost(full)
+	if err != nil {
+		// No wildcard detected (lookup failed)
+		m.wildcardCache[host] = nil
+		return
+	}
+	// Store resolved IPs as wildcard indicators
+	m.wildcardCache[host] = ips
+}
+
+// isWildcardHost returns true if we detected wildcard IPs for the host
+func (m *Model) isWildcardHost(host string) bool {
+	m.wildcardMu.Lock()
+	defer m.wildcardMu.Unlock()
+	ips, ok := m.wildcardCache[host]
+	return ok && ips != nil && len(ips) > 0
+}
+
+// ipMatchesWildcard checks if any of the provided ips match the cached wildcard IPs
+func (m *Model) ipMatchesWildcard(host string, ips []string) bool {
+	m.wildcardMu.Lock()
+	defer m.wildcardMu.Unlock()
+	wips, ok := m.wildcardCache[host]
+	if !ok || wips == nil || len(wips) == 0 || len(ips) == 0 {
+		return false
+	}
+	// Build set for quick lookup
+	set := make(map[string]struct{}, len(wips))
+	for _, ip := range wips {
+		set[ip] = struct{}{}
+	}
+	for _, ip := range ips {
+		if _, found := set[ip]; found {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Model) produceJobs() {
 	defer m.producer.Done()
 
@@ -535,7 +600,19 @@ func (m *Model) produceJobs() {
 		// If subdomain mode, enqueue the subdomain candidate as a job that
 		// will be combined with the target host in the worker.
 		if m.config != nil && m.config.Subdomain {
-			m.jobs <- Job{URL: word, Depth: 0}
+			if m.config.SubdomainPaths {
+				// Cartesian product: for each label, produce a job per path (using the same wordlist)
+				for _, p := range m.wordlist {
+					select {
+					case <-m.stopChannel:
+						return
+					default:
+					}
+					m.jobs <- Job{Label: word, Path: p, Depth: 0}
+				}
+			} else {
+				m.jobs <- Job{Label: word, Depth: 0}
+			}
 			continue
 		}
 
@@ -605,8 +682,8 @@ func (m *Model) worker(statusCodes map[int]bool, filterSize, filterLines map[int
 		}
 
 		var url string
-		// Subdomain fuzzing: treat job.URL as subdomain label and construct host
-		if m.config != nil && m.config.Subdomain {
+		// Subdomain fuzzing: handle job.Label and optional job.Path
+		if m.config != nil && m.config.Subdomain && job.Label != "" {
 			// Extract scheme and host from configured URL
 			base := m.config.URL
 			scheme := "http"
@@ -622,15 +699,63 @@ func (m *Model) worker(statusCodes map[int]bool, filterSize, filterLines map[int
 				host = strings.SplitN(host, "/", 2)[0]
 			}
 
-			// Try combining the fuzz label with the host
-			// Prefer same scheme as configured; worker will attempt the request
-			url = fmt.Sprintf("%s://%s.%s/", scheme, job.URL, host)
+			// If wildcard detection is enabled, ensure cached check exists for this host
+			if m.config.WildcardDetect {
+				m.detectAndCacheWildcard(host)
+			}
+
+			// Build candidate URLs. Optionally try both schemes.
+			schemes := []string{scheme}
+			if m.config.TryBothSchemes {
+				// prefer https first
+				schemes = []string{"https", "http"}
+			}
+
+			// We'll attempt schemes in order until a successful request or exhausted
+			built := false
+			for _, sc := range schemes {
+				// If path provided (cartesian), append it
+				if job.Path != "" {
+					// sanitize path
+					p := strings.TrimLeft(job.Path, "/")
+					url = fmt.Sprintf("%s://%s.%s/%s", sc, job.Label, host, p)
+				} else {
+					url = fmt.Sprintf("%s://%s.%s/", sc, job.Label, host)
+				}
+
+				// If wildcard detected for this host, try resolving this host and skip if it matches wildcard IPs
+				if m.config.WildcardDetect && m.isWildcardHost(host) {
+					fullHost := fmt.Sprintf("%s.%s", job.Label, host)
+					ips, err := net.LookupHost(fullHost)
+					if err == nil && len(ips) > 0 {
+						// If any IP matches the wildcard IPs, skip this attempt entirely
+						if m.ipMatchesWildcard(host, ips) {
+							// skip this url and try next scheme/label
+							continue
+						}
+					}
+				}
+
+				built = true
+				break
+			}
+
+			// if none built (shouldn't happen), fallback
+			if !built {
+				url = fmt.Sprintf("%s://%s.%s/", scheme, job.Label, host)
+			}
 		} else if strings.Contains(job.URL, "://") {
 			url = job.URL
 		} else if strings.Contains(m.config.URL, "FUZZ") {
 			url = strings.Replace(m.config.URL, "FUZZ", job.URL, 1)
 		} else {
-			url = fmt.Sprintf("%s/%s", strings.TrimRight(m.config.URL, "/"), job.URL)
+			// Normal path fuzzing
+			// If job.Path is set (shouldn't happen in normal mode), prefer it
+			if job.Path != "" {
+				url = fmt.Sprintf("%s/%s", strings.TrimRight(m.config.URL, "/"), strings.TrimLeft(job.Path, "/"))
+			} else {
+				url = fmt.Sprintf("%s/%s", strings.TrimRight(m.config.URL, "/"), job.URL)
+			}
 		}
 
 		req.SetRequestURI(url)
@@ -918,31 +1043,34 @@ func tickCmd() tea.Cmd {
 
 // Variáveis globais para flags
 var (
-	url         string
-	wordlist    string
-	threads     int
-	method      string
-	statusCodes string
-	extensions  string
-	headers     []string
-	delay       int
-	retries     int
-	timeout     int
-	recursion   bool
-	maxDepth    int
-	filterSize  string
-	filterLines string
-	filterRegex string
-	noTLS       bool
-	silent      bool
-	verbose     bool
-	outputFile  string
-	userAgent   string
-	cookies     string
-	proxy       string
-	rateLimit   int
-	techDetect  bool
-	subdomain   bool
+	url            string
+	wordlist       string
+	threads        int
+	method         string
+	statusCodes    string
+	extensions     string
+	headers        []string
+	delay          int
+	retries        int
+	timeout        int
+	recursion      bool
+	maxDepth       int
+	filterSize     string
+	filterLines    string
+	filterRegex    string
+	noTLS          bool
+	silent         bool
+	verbose        bool
+	outputFile     string
+	userAgent      string
+	cookies        string
+	proxy          string
+	rateLimit      int
+	techDetect     bool
+	subdomain      bool
+	subdomainPaths bool
+	tryBothSchemes bool
+	wildcardDetect bool
 )
 
 var rootCmd = &cobra.Command{
@@ -1006,6 +1134,9 @@ func init() {
 	rootCmd.Flags().BoolVarP(&techDetect, "tech", "T", false, "Detectar tecnologias do alvo")
 	// Subdomain fuzzing (feroxbuster-like)
 	rootCmd.Flags().BoolVarP(&subdomain, "subdomain", "S", false, "Fuzz subdomains using the wordlist (feroxbuster-like)")
+	rootCmd.Flags().BoolVar(&subdomainPaths, "subdomain-paths", false, "When used with --subdomain, combine subdomains and paths (cartesian product) - very costly")
+	rootCmd.Flags().BoolVar(&tryBothSchemes, "http-https", false, "When used with --subdomain, try both http and https for each label")
+	rootCmd.Flags().BoolVar(&wildcardDetect, "wildcard-detect", true, "Detect wildcard DNS and skip wildcard results when present")
 }
 
 func runScanner(cmd *cobra.Command, args []string) {
@@ -1023,30 +1154,34 @@ func runScanner(cmd *cobra.Command, args []string) {
 
 	// Create configuration
 	cfg := &Config{
-		URL:         url,
-		Wordlist:    wordlist,
-		Threads:     threads,
-		Method:      strings.ToUpper(method),
-		StatusCodes: statusCodes,
-		Extensions:  extensions,
-		Headers:     headers,
-		Delay:       delay,
-		Retries:     retries,
-		Timeout:     timeout,
-		Recursion:   recursion,
-		MaxDepth:    maxDepth,
-		FilterSize:  filterSize,
-		FilterLines: filterLines,
-		FilterRegex: filterRegex,
-		NoTLS:       noTLS,
-		UserAgent:   userAgent,
-		Cookies:     cookies,
-		Proxy:       proxy,
-		RateLimit:   rateLimit,
-		Silent:      silent,
-		Verbose:     verbose,
-		OutputFile:  outputFile,
-		TechDetect:  techDetect,
+		URL:            url,
+		Wordlist:       wordlist,
+		Threads:        threads,
+		Method:         strings.ToUpper(method),
+		StatusCodes:    statusCodes,
+		Extensions:     extensions,
+		Headers:        headers,
+		Delay:          delay,
+		Retries:        retries,
+		Timeout:        timeout,
+		Recursion:      recursion,
+		MaxDepth:       maxDepth,
+		FilterSize:     filterSize,
+		FilterLines:    filterLines,
+		FilterRegex:    filterRegex,
+		NoTLS:          noTLS,
+		UserAgent:      userAgent,
+		Cookies:        cookies,
+		Proxy:          proxy,
+		RateLimit:      rateLimit,
+		Silent:         silent,
+		Verbose:        verbose,
+		OutputFile:     outputFile,
+		TechDetect:     techDetect,
+		Subdomain:      subdomain,
+		SubdomainPaths: subdomainPaths,
+		TryBothSchemes: tryBothSchemes,
+		WildcardDetect: wildcardDetect,
 	}
 	// Additional validations
 	if cfg.Threads > 100 {
