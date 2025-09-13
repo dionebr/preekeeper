@@ -1,19 +1,19 @@
 # Preekeeper
 
-**Preekeeper** é um scanner de diretórios web profissional e de alta velocidade com interface TUI (Terminal User Interface) interativa, construído em Go usando Bubble Tea. Oferece funcionalidades comparáveis ao gobuster e dirb, mas com uma interface visual moderna e recursos avançados.
+**Preekeeper** is a professional, high-speed web directory scanner with an interactive TUI (Terminal User Interface) built in Go using Bubble Tea. It offers features comparable to gobuster and dirb, but with a modern visual interface and advanced capabilities.
 
-## 🚀 Características Principais
+## 🚀 Main Features
 
-- **Interface TUI Interativa**: Interface moderna com Bubble Tea framework
-- **Alta Performance**: Scanning concorrente com FastHTTP
-- **Paleta de Cores Personalizada**: Esquema visual profissional
-- **Múltiplos Filtros**: Por tamanho, linhas, regex e códigos de status
-- **Descoberta de Tecnologias**: Identificação automática de frameworks, CMS, servidores e linguagens do alvo (Wappalyzer)
-- **Scanning Recursivo**: Exploração em profundidade configurável
-- **Rate Limiting**: Controle de velocidade para evitar sobrecarga
-- **Suporte a Proxy**: Compatible com proxies HTTP
-- **Headers Customizados**: Suporte completo a headers HTTP
-- **Múltiplas Extensões**: Scanning automático com extensões configuráveis
+- **Interactive TUI Interface**: Modern interface with Bubble Tea framework
+- **High Performance**: Concurrent scanning with FastHTTP
+- **Custom Color Palette**: Professional visual scheme
+- **Multiple Filters**: By size, lines, regex, and status codes
+- **Technology Detection**: Automatic identification of frameworks, CMS, servers, and languages (Wappalyzer)
+- **Recursive Scanning**: Configurable deep exploration
+- **Rate Limiting**: Speed control to avoid overload
+- **Proxy Support**: Compatible with HTTP proxies
+- **Custom Headers**: Full support for HTTP headers
+- **Multiple Extensions**: Automatic scanning with configurable extensions
 
 ## 📦 Installation
 
@@ -31,242 +31,242 @@ go get github.com/projectdiscovery/wappalyzergo
 go build -o preekeeper main.go
 ```
 
-## 🎯 Uso Básico
+## 🎯 Basic Usage
 
 ```bash
-# Exemplo básico
+# Basic example
 ./preekeeper -u http://example.com -w wordlist.txt
 
-# Com threads personalizadas
+# Custom threads
 ./preekeeper -u http://example.com -w wordlist.txt -t 50
 
-# Com extensões específicas
+# Specific extensions
 ./preekeeper -u http://example.com -w wordlist.txt -x .php,.html,.js
 
-# Scanning recursivo
+# Recursive scanning
 ./preekeeper -u http://example.com -w wordlist.txt -r -d 3
 
-# Com códigos de status específicos
+# Specific status codes
 ./preekeeper -u http://example.com -w wordlist.txt --mc 200,301,302
 ```
 
-## 🛠️ Parâmetros Completos
-| `-T, --tech` | - | Detectar tecnologias do alvo (Wappalyzer) | `--tech` |
-# Detectar tecnologias do alvo
+## 🛠️ Full Parameters
+| `-T, --tech` | - | Detect target technologies (Wappalyzer) | `--tech` |
+# Detect target technologies
 ./preekeeper -u http://example.com --tech
 
-### Parâmetros Obrigatórios
-| Flag | Descrição | Exemplo |
-|------|-----------|---------|
-| `-u, --url` | URL alvo (obrigatório) | `-u http://example.com` |
+### Required Parameters
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-u, --url` | Target URL (required) | `-u http://example.com` |
 
-### Parâmetros de Performance
-| Flag | Padrão | Descrição | Exemplo |
-|------|--------|-----------|---------|
-| `-t, --threads` | 20 | Número de threads concorrentes | `-t 50` |
-| `--delay` | 0 | Delay entre requests (ms) | `--delay 100` |
-| `--timeout` | 10 | Timeout de request (segundos) | `--timeout 30` |
-| `--retries` | 3 | Tentativas em caso de falha | `--retries 5` |
-| `--rate-limit` | 0 | Limite de requests por segundo | `--rate-limit 100` |
+### Performance Parameters
+| Flag | Default | Description | Example |
+|------|---------|-------------|---------|
+| `-t, --threads` | 20 | Number of concurrent threads | `-t 50` |
+| `--delay` | 0 | Delay between requests (ms) | `--delay 100` |
+| `--timeout` | 10 | Request timeout (seconds) | `--timeout 30` |
+| `--retries` | 3 | Number of retries on failure | `--retries 5` |
+| `--rate-limit` | 0 | Requests per second limit | `--rate-limit 100` |
 
-### Parâmetros HTTP
-| Flag | Padrão | Descrição | Exemplo |
-|------|--------|-----------|---------|
-| `-w, --wordlist` | wordlist.txt | Arquivo de wordlist | `-w /path/to/wordlist.txt` |
-| `-m, --method` | GET | Método HTTP | `-m POST` |
-| `-a, --user-agent` | Preekeeper/1.0 🐝 | User agent personalizado | `-a \"Custom Agent\"` |
-| `-H, --headers` | - | Headers personalizados | `-H \"Authorization: Bearer token\"` |
-| `--cookies` | - | Cookies para requests | `--cookies \"session=abc123\"` |
-| `--proxy` | - | URL do proxy | `--proxy http://127.0.0.1:8080` |
+### HTTP Parameters
+| Flag | Default | Description | Example |
+|------|---------|-------------|---------|
+| `-w, --wordlist` | wordlist.txt | Wordlist file | `-w /path/to/wordlist.txt` |
+| `-m, --method` | GET | HTTP method | `-m POST` |
+| `-a, --user-agent` | Preekeeper/1.0 🐝 | Custom user agent | `-a "Custom Agent"` |
+| `-H, --headers` | - | Custom headers | `-H "Authorization: Bearer token"` |
+| `--cookies` | - | Cookies for requests | `--cookies "session=abc123"` |
+| `--proxy` | - | Proxy URL | `--proxy http://127.0.0.1:8080` |
 
-### Parâmetros de Filtragem
-| Flag | Padrão | Descrição | Exemplo |
-|------|--------|-----------|---------|
-| `--mc` | 200,204,301,302,307,403,401,500 | Códigos de status para exibir | `--mc 200,301,302` |
-| `--fs` | - | Filtrar por tamanho de resposta | `--fs 1024,2048` |
-| `--fl` | - | Filtrar por número de linhas | `--fl 10,20` |
-| `--fr` | - | Filtrar por regex na resposta | `--fr \"error\\|404\"` |
+### Filtering Parameters
+| Flag | Default | Description | Example |
+|------|---------|-------------|---------|
+| `--mc` | 200,204,301,302,307,403,401,500 | Status codes to display | `--mc 200,301,302` |
+| `--fs` | - | Filter by response size | `--fs 1024,2048` |
+| `--fl` | - | Filter by number of lines | `--fl 10,20` |
+| `--fr` | - | Filter by regex in response | `--fr "error|404"` |
 
-### Parâmetros de Extensão e Recursão
-| Flag | Padrão | Descrição | Exemplo |
-|------|--------|-----------|---------|
-| `-x, --extensions` | - | Extensões de arquivo | `-x .php,.html,.js,.txt` |
-| `-r, --recursive` | false | Habilitar scanning recursivo | `-r` |
-| `-d, --depth` | 2 | Profundidade máxima recursiva | `-d 5` |
+### Extension and Recursion Parameters
+| Flag | Default | Description | Example |
+|------|---------|-------------|---------|
+| `-x, --extensions` | - | File extensions | `-x .php,.html,.js,.txt` |
+| `-r, --recursive` | false | Enable recursive scanning | `-r` |
+| `-d, --depth` | 2 | Maximum recursion depth | `-d 5` |
 
-### Parâmetros de Segurança
-| Flag | Descrição | Exemplo |
-|------|-----------|---------|
-| `--no-tls-validation` | Ignorar validação TLS | `--no-tls-validation` |
+### Security Parameters
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--no-tls-validation` | Skip TLS validation | `--no-tls-validation` |
 
-### Parâmetros de Output
-| Flag | Descrição | Exemplo |
-|------|-----------|---------|
-| `-s, --silent` | Modo silencioso | `-s` |
-| `-v, --verbose` | Output verboso | `-v` |
-| `-o, --output` | Arquivo de saída | `-o results.txt` |
+### Output Parameters
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-s, --silent` | Silent mode | `-s` |
+| `-v, --verbose` | Verbose output | `-v` |
+| `-o, --output` | Output file | `-o results.txt` |
 
-## 🎨 Interface TUI
+## 🎨 TUI Interface
 
-### Controles Interativos
-- **`s`** - Iniciar scan
-- **`p`** - Pausar/Retomar scan
-- **`r`** - Reiniciar scan
-- **`h`** - Exibir ajuda completa
-- **`q`** - Sair da aplicação
-- **`↑/k`** - Scroll para cima nos resultados
-- **`↓/j`** - Scroll para baixo nos resultados
+### Interactive Controls
+- **`s`** - Start scan
+- **`p`** - Pause/Resume scan
+- **`r`** - Restart scan
+- **`h`** - Show full help
+- **`q`** - Quit application
+- **`↑/k`** - Scroll up in results
+- **`↓/j`** - Scroll down in results
 
-### Filtros de Status
-- **`1`** - Mostrar apenas respostas 2xx (Success)
-- **`2`** - Mostrar apenas respostas 3xx (Redirect)
-- **`3`** - Mostrar apenas respostas 4xx (Client Error)
-- **`4`** - Mostrar apenas respostas 5xx (Server Error)
-- **`5`** - Mostrar todas as respostas
+### Status Filters
+- **`1`** - Show only 2xx responses (Success)
+- **`2`** - Show only 3xx responses (Redirect)
+- **`3`** - Show only 4xx responses (Client Error)
+- **`4`** - Show only 5xx responses (Server Error)
+- **`5`** - Show all responses
 
-### Esquema de Cores
-- **Marrom Acinzentado** (#94866d) - Respostas 2xx (Success)
-- **Marrom Madeira** (#746142) - Respostas 3xx (Redirect)
-- **Marrom Escuro** (#42432e) - Respostas 4xx (Client Error)
-- **Preto** (#1d1f10) - Respostas 5xx (Server Error)
-- **Cinza-Bege** (#b4b2a7) - Outras respostas
+### Color Scheme
+- **Gray Brown** (#94866d) - 2xx (Success)
+- **Wood Brown** (#746142) - 3xx (Redirect)
+- **Dark Brown** (#42432e) - 4xx (Client Error)
+- **Black Brown** (#1d1f10) - 5xx (Server Error)
+- **Beige Gray** (#b4b2a7) - Other responses
 
-## 📝 Exemplos Avançados
-### Descoberta de Tecnologias
+## 📝 Advanced Examples
+### Technology Detection
 ```bash
 ./preekeeper -u http://example.com --tech
 ```
 
-### Scanning com Autenticação
+### Scanning with Authentication
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIs...\" \\
-  --cookies \"session=abc123; csrf_token=xyz789\"
+./preekeeper -u http://example.com -w wordlist.txt \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  --cookies "session=abc123; csrf_token=xyz789"
 ```
 
-### Scanning através de Proxy
+### Scanning via Proxy
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  --proxy http://127.0.0.1:8080 \\
+./preekeeper -u http://example.com -w wordlist.txt \
+  --proxy http://127.0.0.1:8080 \
   --no-tls-validation
 ```
 
-### Scanning Recursivo Profundo
+### Deep Recursive Scanning
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  -r -d 5 -t 30 \\
+./preekeeper -u http://example.com -w wordlist.txt \
+  -r -d 5 -t 30 \
   -x .php,.html,.js,.css,.txt,.xml
 ```
 
-### Scanning com Rate Limiting
+### Scanning with Rate Limiting
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  --rate-limit 50 \\
-  --delay 200 \\
+./preekeeper -u http://example.com -w wordlist.txt \
+  --rate-limit 50 \
+  --delay 200 \
   -t 10
 ```
 
-### Scanning com Filtros Específicos
+### Scanning with Specific Filters
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  --mc 200,301,403 \\
-  --fs 1024,2048,4096 \\
-  --fr \"(?i)(admin|login|password)\"
+./preekeeper -u http://example.com -w wordlist.txt \
+  --mc 200,301,403 \
+  --fs 1024,2048,4096 \
+  --fr "(?i)(admin|login|password)"
 ```
 
-### Scanning com FUZZ personalizado
+### Scanning with Custom FUZZ
 ```bash
-./preekeeper -u http://example.com/api/FUZZ -w api-endpoints.txt \\
-  -m POST \\
-  -H \"Content-Type: application/json\" \\
+./preekeeper -u http://example.com/api/FUZZ -w api-endpoints.txt \
+  -m POST \
+  -H "Content-Type: application/json" \
   --mc 200,201,202
 ```
 
-## 📊 Métricas em Tempo Real
+## 📊 Real-Time Metrics
 
-A interface TUI exibe métricas em tempo real:
+The TUI interface displays real-time metrics:
 
-- **Elapsed**: Tempo decorrido do scan
-- **Found**: Número de endpoints encontrados
-- **RPS**: Requests por segundo atual
-- **Processed**: Total de requests processados
-- **Current**: URL sendo testada atualmente
-- **Recursion**: Status de scanning recursivo
+- **Elapsed**: Scan elapsed time
+- **Found**: Number of endpoints found
+- **RPS**: Current requests per second
+- **Processed**: Total requests processed
+- **Current**: URL currently being tested
+- **Recursion**: Recursive scanning status
 
-## 🔧 Configuração de Wordlists
+## 🔧 Wordlist Configuration
 
-O Preekeeper inclui uma wordlist padrão com mais de 100 termos comuns, mas você pode usar suas próprias wordlists:
+Preekeeper includes a default wordlist with over 100 common terms, but you can use your own wordlists:
 
 ```bash
-# Wordlists populares
+# Popular wordlists
 ./preekeeper -u http://example.com -w /usr/share/wordlists/dirb/common.txt
 ./preekeeper -u http://example.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
 ./preekeeper -u http://example.com -w custom-endpoints.txt
 ```
 
-## ⚡ Otimizações de Performance
+## ⚡ Performance Optimizations
 
-### Para Máxima Velocidade
+### For Maximum Speed
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  -t 100 \\
-  --rate-limit 0 \\
-  --delay 0 \\
+./preekeeper -u http://example.com -w wordlist.txt \
+  -t 100 \
+  --rate-limit 0 \
+  --delay 0 \
   --timeout 5
 ```
 
-### Para Targets Sensíveis
+### For Sensitive Targets
 ```bash
-./preekeeper -u http://example.com -w wordlist.txt \\
-  -t 5 \\
-  --rate-limit 10 \\
-  --delay 500 \\
+./preekeeper -u http://example.com -w wordlist.txt \
+  -t 5 \
+  --rate-limit 10 \
+  --delay 500 \
   --timeout 30
 ```
 
-## 🚨 Limitações e Considerações
+## 🚨 Limitations and Considerations
 
-- **Rate Limiting**: Use sempre rate limiting em ambientes de produção
-- **Thread Count**: Mais de 100 threads pode causar problemas de rede
-- **Memory Usage**: Wordlists muito grandes podem consumir memória
-- **Target Stability**: Monitore a estabilidade do target durante scans intensivos
+- **Rate Limiting**: Always use rate limiting in production environments
+- **Thread Count**: More than 100 threads may cause network issues
+- **Memory Usage**: Very large wordlists may consume memory
+- **Target Stability**: Monitor target stability during intensive scans
 
 ## 🐛 Troubleshooting
 
-### Problemas Comuns
+### Common Issues
 
-1. **\"URL is required\"**
-   - Solução: Use a flag `-u` com uma URL válida
+1. **"URL is required"**
+   - Solution: Use the `-u` flag with a valid URL
 
-2. **\"Wordlist file not found\"**
-   - Solução: Verifique o caminho da wordlist com `-w`
+2. **"Wordlist file not found"**
+   - Solution: Check the wordlist path with `-w`
 
 3. **Connection timeouts**
-   - Solução: Aumente o timeout com `--timeout 30`
+   - Solution: Increase timeout with `--timeout 30`
 
-4. **Rate limiting pelo target**
-   - Solução: Reduza threads `-t 5` e adicione delay `--delay 1000`
+4. **Rate limiting by target**
+   - Solution: Reduce threads `-t 5` and add delay `--delay 1000`
 
-## 🤝 Contribuição
+## 🤝 Contributing
 
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -am 'Adiciona nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/nova-funcionalidade`)
-5. Abra um Pull Request
+1. Fork the project
+2. Create a branch for your feature (`git checkout -b feature/new-feature`)
+3. Commit your changes (`git commit -am 'Add new feature'`)
+4. Push to the branch (`git push origin feature/new-feature`)
+5. Open a Pull Request
 
-## 📜 Licença
+## 📜 License
 
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para detalhes.
+This project is under the MIT license. See the `LICENSE` file for details.
 
-## 👤 Autor
+## 👤 Author
 
 **Dione Lima - Brazil**
 
-- Ferramenta: Preekeeper Scanner 🐝
+- Tool: Preekeeper Scanner 🐝
 - Framework: Bubble Tea + FastHTTP
-- Performance: Scanning concorrente de alta velocidade
+- Performance: High-speed concurrent scanning
 
 ---
 
-**Preekeeper Scanner** - Transformando scanning de diretórios em uma experiência visual e eficiente! 🚀
+**Preekeeper Scanner** - Making directory scanning a visual and efficient experience! 🚀
