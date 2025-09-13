@@ -535,13 +535,47 @@ func (m *Model) runScanner() {
 	if m.config != nil && m.config.OutputFile != "" {
 		// Snapshot results under lock
 		m.mu.Lock()
+		// Build metadata with timestamps and a safe subset of config values
+		start := m.startTime
+		end := time.Now()
+
+		cfgSummary := map[string]interface{}{
+			"url":              m.config.URL,
+			"wordlist":         m.config.Wordlist,
+			"threads":          m.config.Threads,
+			"method":           m.config.Method,
+			"status_codes":     m.config.StatusCodes,
+			"extensions":       m.config.Extensions,
+			"delay_ms":         m.config.Delay,
+			"retries":          m.config.Retries,
+			"timeout_s":        m.config.Timeout,
+			"recursion":        m.config.Recursion,
+			"max_depth":        m.config.MaxDepth,
+			"rate_limit":       m.config.RateLimit,
+			"subdomain":        m.config.Subdomain,
+			"subdomain_paths":  m.config.SubdomainPaths,
+			"try_both_schemes": m.config.TryBothSchemes,
+			"wildcard_detect":  m.config.WildcardDetect,
+			"tech_detect":      m.config.TechDetect,
+		}
+
 		out := struct {
+			Metadata struct {
+				Start           string                 `json:"start"`
+				End             string                 `json:"end"`
+				DurationSeconds float64                `json:"duration_seconds"`
+				Config          map[string]interface{} `json:"config"`
+			} `json:"metadata"`
 			Results  []Result           `json:"results"`
 			Detected map[string]string  `json:"detected_technologies,omitempty"`
-		}{
-			Results:  append([]Result{}, m.results...),
-			Detected: m.detectedTech,
-		}
+		}{}
+
+		out.Metadata.Start = start.UTC().Format(time.RFC3339)
+		out.Metadata.End = end.UTC().Format(time.RFC3339)
+		out.Metadata.DurationSeconds = end.Sub(start).Seconds()
+		out.Metadata.Config = cfgSummary
+		out.Results = append([]Result{}, m.results...)
+		out.Detected = m.detectedTech
 		m.mu.Unlock()
 
 		data, err := json.MarshalIndent(out, "", "  ")
