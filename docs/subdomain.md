@@ -19,4 +19,3 @@ Este documento explica o comportamento das opções de subdomain no Preekeeper e
 - Combine `--subdomain` com `--wildcard-detect` (padrão) para reduzir falsos positivos.
 - Use `--rate-limit` e `--delay` para controlar taxa de requests.
 - Se precisar de mais controle sobre combinações, considere gerar uma wordlist específica com o produto cartesiano fora do scanner e usar em modo padrão.
-

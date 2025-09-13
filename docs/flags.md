@@ -49,4 +49,4 @@ Este documento descreve todas as flags suportadas pela ferramenta, incluindo as 
 
 ---
 
-Para exemplos práticos veja `doc/usage.md`.
+Para exemplos práticos veja `docs/usage.md`.

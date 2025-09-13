@@ -16,4 +16,3 @@ Preekeeper inclui uma detecção simples de wildcard DNS para evitar falsos posi
 ## Recomendações
 - Para alvos complexos, desative `--wildcard-detect` e use validação manual / requisições adicionais.
 - Podemos melhorar detection: usar múltiplas queries, comparar padrões de TTL, ou usar probes HTTP com payloads específicos.
-

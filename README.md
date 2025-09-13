@@ -204,12 +204,12 @@ Note: technology detection runs silently by default so it won't interfere with t
 
 ## � Full Documentation
 
-Detailed documentation was moved into the `doc/` directory for easier reading and maintenance. See:
+Detailed documentation is available in the `docs/` directory for easier reading and maintenance. See:
 
-- `doc/usage.md` - practical usage examples including subdomain and cartesian examples
-- `doc/flags.md` - full flags reference (includes the new subdomain and wildcard flags)
-- `doc/subdomain.md` - design notes and recommendations for subdomain fuzzing modes
-- `doc/wildcard.md` - explanation, limitations and recommendations for wildcard DNS detection
+- `docs/usage.md` - practical usage examples including subdomain and cartesian examples
+- `docs/flags.md` - full flags reference (includes the new subdomain and wildcard flags)
+- `docs/subdomain.md` - design notes and recommendations for subdomain fuzzing modes
+- `docs/wildcard.md` - explanation, limitations and recommendations for wildcard DNS detection
 
 ### New subdomain / wildcard flags (summary)
 
@@ -218,7 +218,7 @@ Detailed documentation was moved into the `doc/` directory for easier reading an
 - `--http-https` - When used with `--subdomain`, try both `https` and `http` for each label (prefers https first).
 - `--wildcard-detect` - (default true) Detect wildcard DNS and skip likely wildcard results by comparing resolved IPs.
 
-These options are powerful but can be very expensive in terms of requests — consult `doc/subdomain.md` and use `--rate-limit`/`--delay` to throttle.
+These options are powerful but can be very expensive in terms of requests — consult `docs/subdomain.md` and use `--rate-limit`/`--delay` to throttle.
 
 
 ## �📊 Real-Time Metrics
