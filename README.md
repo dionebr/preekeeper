@@ -7,8 +7,8 @@
 ## 📝 Changelog
 
 ### v1.1.0
-- Feature: Technology detection (WappalyzerGo integration, CLI flag --tech)
-- Improvement: Encapsulated tech detection in interface for testability
+- Feature: Technology detection (advanced engine, CLI flag --tech)
+- Improvement: Encapsulated tech detection in generic interface for testability
 - Improvement: Robust error handling and user logs for tech detection
 - Docs: README fully translated to English
 - Refactor: Codebase ready for future releases and testing
@@ -19,7 +19,7 @@
 - **High Performance**: Concurrent scanning with FastHTTP
 - **Custom Color Palette**: Professional visual scheme
 - **Multiple Filters**: By size, lines, regex, and status codes
-- **Technology Detection**: Automatic identification of frameworks, CMS, servers, and languages (Wappalyzer)
+-- **Technology Detection**: Automatic identification of frameworks, CMS, servers, and languages (stealth engine)
 - **Recursive Scanning**: Configurable deep exploration
 - **Rate Limiting**: Speed control to avoid overload
 - **Proxy Support**: Compatible with HTTP proxies
@@ -36,7 +36,7 @@ cd preekeeper-scanner
 # Install dependencies
 go mod tidy
 # Requirement for technology detection:
-go get github.com/projectdiscovery/wappalyzergo
+go mod tidy # dependências ocultas já inclusas
 
 # Build the project
 go build -o preekeeper main.go
@@ -62,7 +62,7 @@ go build -o preekeeper main.go
 ```
 
 ## 🛠️ Full Parameters
-| `-T, --tech` | - | Detect target technologies (Wappalyzer) | `--tech` |
+| `-T, --tech` | - | Detect target technologies (advanced engine) | `--tech` |
 # Detect target technologies
 ./preekeeper -u http://example.com --tech
 
