@@ -982,18 +982,35 @@ func runScanner(cmd *cobra.Command, args []string) {
                         }
                 }
 
-                // Função de detecção de tecnologias usando WappalyzerGo
+                // TechnologyDetector interface for testability and future extension
+                type TechnologyDetector interface {
+                        Detect(url string) (map[string]string, error)
+                }
+
+                // WappalyzerGoDetector implements TechnologyDetector
+                type WappalyzerGoDetector struct{}
+
+                func (w *WappalyzerGoDetector) Detect(url string) (map[string]string, error) {
+                        return wappalyzergo.Fingerprint(url)
+                }
+
+                // Robust technology detection with logging and error handling
                 func detectarTecnologias(url string) {
-                        technologies, err := wappalyzergo.Fingerprint(url)
+                        detector := &WappalyzerGoDetector{}
+                        fmt.Printf("[INFO] Detecting technologies for target: %s\n", url)
+                        technologies, err := detector.Detect(url)
                         if err != nil {
-                                fmt.Println("Erro ao detectar tecnologias:", err)
+                                fmt.Printf("[ERROR] Technology detection failed: %v\n", err)
+                                if strings.Contains(err.Error(), "timeout") {
+                                        fmt.Println("[WARN] Timeout occurred. Try increasing --timeout or check connectivity.")
+                                }
                                 return
                         }
                         if len(technologies) == 0 {
-                                fmt.Println("Nenhuma tecnologia detectada.")
+                                fmt.Println("[INFO] No technologies detected.")
                                 return
                         }
-                        fmt.Println("Tecnologias detectadas:")
+                        fmt.Println("[INFO] Technologies detected:")
                         for tech, version := range technologies {
                                 if version != "" {
                                         fmt.Printf("- %s %s\n", tech, version)
