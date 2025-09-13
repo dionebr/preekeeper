@@ -54,6 +54,7 @@ type Config struct {
 	Verbose     bool
 	OutputFile  string
 	TechDetect  bool
+	Subdomain   bool
 }
 
 // Result estrutura
@@ -531,6 +532,14 @@ func (m *Model) produceJobs() {
 		default:
 		}
 
+		// If subdomain mode, enqueue the subdomain candidate as a job that
+		// will be combined with the target host in the worker.
+		if m.config != nil && m.config.Subdomain {
+			m.jobs <- Job{URL: word, Depth: 0}
+			continue
+		}
+
+		// Normal path fuzzing
 		m.jobs <- Job{URL: word, Depth: 0}
 
 		for _, ext := range extensions {
@@ -596,7 +605,27 @@ func (m *Model) worker(statusCodes map[int]bool, filterSize, filterLines map[int
 		}
 
 		var url string
-		if strings.Contains(job.URL, "://") {
+		// Subdomain fuzzing: treat job.URL as subdomain label and construct host
+		if m.config != nil && m.config.Subdomain {
+			// Extract scheme and host from configured URL
+			base := m.config.URL
+			scheme := "http"
+			host := base
+			if strings.Contains(base, "://") {
+				parts := strings.SplitN(base, "://", 2)
+				scheme = parts[0]
+				host = parts[1]
+			}
+
+			// If host contains path, strip it
+			if strings.Contains(host, "/") {
+				host = strings.SplitN(host, "/", 2)[0]
+			}
+
+			// Try combining the fuzz label with the host
+			// Prefer same scheme as configured; worker will attempt the request
+			url = fmt.Sprintf("%s://%s.%s/", scheme, job.URL, host)
+		} else if strings.Contains(job.URL, "://") {
 			url = job.URL
 		} else if strings.Contains(m.config.URL, "FUZZ") {
 			url = strings.Replace(m.config.URL, "FUZZ", job.URL, 1)
@@ -913,6 +942,7 @@ var (
 	proxy       string
 	rateLimit   int
 	techDetect  bool
+	subdomain   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -974,6 +1004,8 @@ func init() {
 
 	// Tecnologia
 	rootCmd.Flags().BoolVarP(&techDetect, "tech", "T", false, "Detectar tecnologias do alvo")
+	// Subdomain fuzzing (feroxbuster-like)
+	rootCmd.Flags().BoolVarP(&subdomain, "subdomain", "S", false, "Fuzz subdomains using the wordlist (feroxbuster-like)")
 }
 
 func runScanner(cmd *cobra.Command, args []string) {
