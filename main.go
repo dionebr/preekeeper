@@ -754,6 +754,11 @@ func (m *Model) renderProgress() string {
 	statusLine := fmt.Sprintf("[%s] Elapsed: %s | Found: %d | RPS: %.2f | Processed: %d",
 		status, elapsed, m.stats.FoundCount, m.stats.RPS, m.stats.ProcessedCount)
 
+	// Append a visual indicator when technologies were detected
+	if m.detectedTech != nil && len(m.detectedTech) > 0 {
+		statusLine = fmt.Sprintf("%s | Tech: detected (press t)", statusLine)
+	}
+
 	b.WriteString(ProgressStyle.Render(statusLine) + "\n")
 
 	if m.stats.CurrentPath != "" {
@@ -1073,13 +1078,22 @@ func detectarTecnologias(cfg *Config) map[string]string {
 	}
 
 	client := &http.Client{Transport: tr, Timeout: time.Duration(cfg.Timeout) * time.Second}
+	if cfg.Verbose {
+		fmt.Fprintf(os.Stderr, "[VERBOSE] Running tech detection for %s\n", cfg.URL)
+	}
 	resp, err := client.Get(cfg.URL)
 	if err != nil {
+		if cfg.Verbose {
+			fmt.Fprintf(os.Stderr, "[VERBOSE] Technology detection failed: %v\n", err)
+		}
 		return res
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		if cfg.Verbose {
+			fmt.Fprintf(os.Stderr, "[VERBOSE] Technology detection read body failed: %v\n", err)
+		}
 		return res
 	}
 
@@ -1087,6 +1101,9 @@ func detectarTecnologias(cfg *Config) map[string]string {
 	technologies := engine.Fingerprint(resp.Header, body)
 	for k, v := range technologies {
 		res[k] = v
+	}
+	if cfg.Verbose {
+		fmt.Fprintf(os.Stderr, "[VERBOSE] Technology detection found %d items\n", len(res))
 	}
 	return res
 }
