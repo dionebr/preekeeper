@@ -358,24 +358,9 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			close(m.stopChannel)
 			// If tech detection is enabled, run detection now and store results for UI
 			if m.config != nil && m.config.TechDetect && (m.detectedTech == nil || len(m.detectedTech) == 0) {
-				go func() {
-					tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: m.config.NoTLS}}
-					if m.config.Proxy != "" {
-						if pu, err := neturl.Parse(m.config.Proxy); err == nil {
-							tr.Proxy = http.ProxyURL(pu)
-						}
-					}
-					client := &http.Client{Transport: tr, Timeout: time.Duration(m.config.Timeout) * time.Second}
-					resp, err := client.Get(m.config.URL)
-					if err == nil {
-						body, err := io.ReadAll(resp.Body)
-						resp.Body.Close()
-						if err == nil {
-							engine := &TechFingerprint{}
-							m.detectedTech = engine.Fingerprint(resp.Header, body)
-						}
-					}
-				}()
+				go func(cfg *Config, model *Model) {
+					model.detectedTech = detectarTecnologias(cfg)
+				}(m.config, m)
 			}
 		} else if m.state == statePaused {
 			m.state = stateScanning
@@ -527,25 +512,7 @@ func (m *Model) runScanner() {
 
 	// After scanning completes, if technology detection flag was set, run detection
 	if m.config != nil && m.config.TechDetect {
-		// perform a simple HTTP GET using net/http respecting timeout
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: m.config.NoTLS},
-		}
-		if m.config.Proxy != "" {
-			if pu, err := neturl.Parse(m.config.Proxy); err == nil {
-				tr.Proxy = http.ProxyURL(pu)
-			}
-		}
-		client := &http.Client{Transport: tr, Timeout: time.Duration(m.config.Timeout) * time.Second}
-		resp, err := client.Get(m.config.URL)
-		if err == nil {
-			body, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err == nil {
-				engine := &TechFingerprint{}
-				m.detectedTech = engine.Fingerprint(resp.Header, body)
-			}
-		}
+		m.detectedTech = detectarTecnologias(m.config)
 	}
 }
 
@@ -1052,13 +1019,8 @@ func runScanner(cmd *cobra.Command, args []string) {
 		cfg.Delay = 0
 	}
 
-	// Detect technologies if requested
-	if techDetect {
-		fmt.Println("\n[+] Detecting target technologies...")
-		detectarTecnologias(cfg)
-		fmt.Println("--------------------------------------")
-		fmt.Println() // This line is added to maintain the spacing if needed
-	}
+	// Note: technology detection will run silently after the scan completes or when
+	// the user pauses the scan (if -T/--tech is provided). We avoid printing here.
 
 	// Create model and start TUI
 	model := NewModel(cfg)
@@ -1095,53 +1057,38 @@ func NewTechEngine() (FingerprintEngine, error) {
 	return &techEngineAdapter{eng: eng}, nil
 }
 
-// Robust technology detection with logging and error handling
-func detectarTecnologias(cfg *Config) {
-	// Build a net/http client that respects proxy and TLS options
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.NoTLS},
+// detectarTecnologias performs technology detection silently and returns the
+// detected technologies as a map[name]version. It does not print anything.
+func detectarTecnologias(cfg *Config) map[string]string {
+	res := make(map[string]string)
+	if cfg == nil || cfg.URL == "" {
+		return res
 	}
 
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.NoTLS}}
 	if cfg.Proxy != "" {
-		proxyURL, err := neturl.Parse(cfg.Proxy)
-		if err == nil {
-			tr.Proxy = http.ProxyURL(proxyURL)
-		} else {
-			fmt.Printf("[WARN] Invalid proxy URL, ignoring proxy setting: %v\n", err)
+		if pu, err := neturl.Parse(cfg.Proxy); err == nil {
+			tr.Proxy = http.ProxyURL(pu)
 		}
 	}
 
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   time.Duration(cfg.Timeout) * time.Second,
-	}
-
+	client := &http.Client{Transport: tr, Timeout: time.Duration(cfg.Timeout) * time.Second}
 	resp, err := client.Get(cfg.URL)
 	if err != nil {
-		fmt.Printf("[ERROR] Technology detection failed: %v\n", err)
-		return
+		return res
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("[ERROR] Technology detection failed: %v\n", err)
-		return
+		return res
 	}
+
 	engine := &TechFingerprint{}
-	fmt.Printf("[INFO] Detecting technologies for target: %s\n", cfg.URL)
 	technologies := engine.Fingerprint(resp.Header, body)
-	if len(technologies) == 0 {
-		fmt.Println("[INFO] No technologies detected.")
-		return
+	for k, v := range technologies {
+		res[k] = v
 	}
-	fmt.Println("[INFO] Technologies detected:")
-	for tech, version := range technologies {
-		if version != "" {
-			fmt.Printf("- %s %s\n", tech, version)
-		} else {
-			fmt.Printf("- %s\n", tech)
-		}
-	}
+	return res
 }
 
 func main() {
