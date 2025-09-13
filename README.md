@@ -157,6 +157,23 @@ The detected technologies are stored and can be toggled in the TUI with the `t` 
 
 Note: technology detection runs silently by default so it won't interfere with the TUI output. To see diagnostic messages from the detection engine enable verbose mode with `-v`/`--verbose`. When verbose is active, detection logs are written to stderr to avoid breaking the TUI rendering on stdout.
 
+### Output file (JSON)
+
+When `-o`/`--output` is provided the scanner will write a JSON file containing the list of results and, when available, the detected technologies. Example:
+
+```bash
+./preekeeper -u http://example.com -w wordlist.txt -o results.json
+```
+
+The JSON structure looks like:
+
+```json
+{
+  "results": [ {"path":"http://example.com/admin","status":200,"size":1234,"lines":45}, ... ],
+  "detected_technologies": {"Nginx":"1.18","PHP":"7.4"}
+}
+```
+
 ### Scanning with Authentication
 ```bash
 ./preekeeper -u http://example.com -w wordlist.txt \

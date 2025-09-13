@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/valyala/fasthttp"
 	"io"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -528,6 +529,37 @@ func (m *Model) runScanner() {
 	// After scanning completes, if technology detection flag was set, run detection
 	if m.config != nil && m.config.TechDetect {
 		m.detectedTech = detectarTecnologias(m.config)
+	}
+
+	// If an output file was provided, save results (and detected tech) as JSON.
+	if m.config != nil && m.config.OutputFile != "" {
+		// Snapshot results under lock
+		m.mu.Lock()
+		out := struct {
+			Results  []Result           `json:"results"`
+			Detected map[string]string  `json:"detected_technologies,omitempty"`
+		}{
+			Results:  append([]Result{}, m.results...),
+			Detected: m.detectedTech,
+		}
+		m.mu.Unlock()
+
+		data, err := json.MarshalIndent(out, "", "  ")
+		if err != nil {
+			if m.config.Verbose {
+				fmt.Fprintf(os.Stderr, "[VERBOSE] Failed to marshal results to JSON: %v\n", err)
+			}
+		} else {
+			if err := os.WriteFile(m.config.OutputFile, data, 0644); err != nil {
+				if m.config.Verbose {
+					fmt.Fprintf(os.Stderr, "[VERBOSE] Failed to write output file %s: %v\n", m.config.OutputFile, err)
+				}
+			} else {
+				if m.config.Verbose {
+					fmt.Fprintf(os.Stderr, "[VERBOSE] Results written to %s\n", m.config.OutputFile)
+				}
+			}
+		}
 	}
 }
 
