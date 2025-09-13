@@ -18,6 +18,7 @@ import (
         "github.com/spf13/cobra"
         "github.com/valyala/fasthttp"
         "github.com/valyala/fasthttp/fasthttpproxy"
+        "github.com/projectdiscovery/wappalyzergo"
 )
 
 // Config estrutura
@@ -831,6 +832,7 @@ var (
         cookies      string
         proxy        string
         rateLimit    int
+        techDetect   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -885,10 +887,13 @@ func init() {
         // Security flags
         rootCmd.Flags().BoolVar(&noTLS, "no-tls-validation", false, "Skip TLS certificate validation")
         
-        // Output flags
-        rootCmd.Flags().BoolVarP(&silent, "silent", "s", false, "Silent mode (no banner)")
-        rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
-        rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file for results")
+                // Output flags
+                rootCmd.Flags().BoolVarP(&silent, "silent", "s", false, "Silent mode (no banner)")
+                rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+                rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file for results")
+
+                // Tecnologia
+                rootCmd.Flags().BoolVarP(&techDetect, "tech", "T", false, "Detectar tecnologias do alvo (Wappalyzer)")
 }
 
 func runScanner(cmd *cobra.Command, args []string) {
@@ -913,52 +918,87 @@ func runScanner(cmd *cobra.Command, args []string) {
                 StatusCodes: statusCodes,
                 Extensions:  extensions,
                 Headers:     headers,
-                Delay:       delay,
-                Retries:     retries,
-                Timeout:     timeout,
-                Recursion:   recursion,
-                MaxDepth:    maxDepth,
-                FilterSize:  filterSize,
-                FilterLines: filterLines,
-                FilterRegex: filterRegex,
-                NoTLS:       noTLS,
-                UserAgent:   userAgent,
-                Cookies:     cookies,
-                Proxy:       proxy,
-                RateLimit:   rateLimit,
-                Silent:      silent,
-                Verbose:     verbose,
-                OutputFile:  outputFile,
-        }
-        
-        // Validações adicionais
-        if cfg.Threads > 100 {
-                fmt.Println(ErrorStyle.Render("Warning: High thread count (>100) may cause issues"))
-        }
-        
-        if cfg.Delay < 0 {
-                cfg.Delay = 0
-        }
-        
-        // Criar modelo e iniciar TUI
-        model := NewModel(cfg)
-        
-        // Configurar programa
-        var opts []tea.ProgramOption
-        if !silent {
-                opts = append(opts, tea.WithAltScreen())
-        }
-        
-        p := tea.NewProgram(model, opts...)
-        
-        if _, err := p.Run(); err != nil {
-                log.Fatalf("Error running scanner: %v", err)
-        }
-}
+                        // Validar URL
+                        if url == "" {
+                                fmt.Println(ErrorStyle.Render("Error: URL is required. Use -u flag."))
+                                os.Exit(1)
+                        }
+                        // Validar wordlist
+                        if _, err := os.Stat(wordlist); os.IsNotExist(err) {
+                                fmt.Println(ErrorStyle.Render(fmt.Sprintf("Error: Wordlist file '%s' not found", wordlist)))
+                                os.Exit(1)
+                        }
+                        // Criar configuração
+                        cfg := &Config{
+                                URL:         url,
+                                Wordlist:    wordlist,
+                                Threads:     threads,
+                                Method:      strings.ToUpper(method),
+                                StatusCodes: statusCodes,
+                                Extensions:  extensions,
+                                Headers:     headers,
+                                Delay:       delay,
+                                Retries:     retries,
+                                Timeout:     timeout,
+                                Recursion:   recursion,
+                                MaxDepth:    maxDepth,
+                                FilterSize:  filterSize,
+                                FilterLines: filterLines,
+                                FilterRegex: filterRegex,
+                                NoTLS:       noTLS,
+                                UserAgent:   userAgent,
+                                Cookies:     cookies,
+                                Proxy:       proxy,
+                                RateLimit:   rateLimit,
+                                Silent:      silent,
+                                Verbose:     verbose,
+                                OutputFile:  outputFile,
+                        }
+                        // Validações adicionais
+                        if cfg.Threads > 100 {
+                                fmt.Println(ErrorStyle.Render("Warning: High thread count (>100) may cause issues"))
+                        }
+                        if cfg.Delay < 0 {
+                                cfg.Delay = 0
+                        }
 
-func main() {
-        if err := rootCmd.Execute(); err != nil {
-                fmt.Println(ErrorStyle.Render(err.Error()))
-                os.Exit(1)
-        }
-}
+                        // Detectar tecnologias se solicitado
+                        if techDetect {
+                                fmt.Println("\n[+] Detectando tecnologias do alvo...")
+                                detectarTecnologias(cfg.URL)
+                                fmt.Println("--------------------------------------\n")
+                        }
+
+                        // Criar modelo e iniciar TUI
+                        model := NewModel(cfg)
+                        // Configurar programa
+                        var opts []tea.ProgramOption
+                        if !silent {
+                                opts = append(opts, tea.WithAltScreen())
+                        }
+                        p := tea.NewProgram(model, opts...)
+                        if _, err := p.Run(); err != nil {
+                                log.Fatalf("Error running scanner: %v", err)
+                        }
+                }
+
+                // Função de detecção de tecnologias usando WappalyzerGo
+                func detectarTecnologias(url string) {
+                        technologies, err := wappalyzergo.Fingerprint(url)
+                        if err != nil {
+                                fmt.Println("Erro ao detectar tecnologias:", err)
+                                return
+                        }
+                        if len(technologies) == 0 {
+                                fmt.Println("Nenhuma tecnologia detectada.")
+                                return
+                        }
+                        fmt.Println("Tecnologias detectadas:")
+                        for tech, version := range technologies {
+                                if version != "" {
+                                        fmt.Printf("- %s %s\n", tech, version)
+                                } else {
+                                        fmt.Printf("- %s\n", tech)
+                                }
+                        }
+                }

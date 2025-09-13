@@ -8,23 +8,26 @@
 - **Alta Performance**: Scanning concorrente com FastHTTP
 - **Paleta de Cores Personalizada**: Esquema visual profissional
 - **Múltiplos Filtros**: Por tamanho, linhas, regex e códigos de status
+- **Descoberta de Tecnologias**: Identificação automática de frameworks, CMS, servidores e linguagens do alvo (Wappalyzer)
 - **Scanning Recursivo**: Exploração em profundidade configurável
 - **Rate Limiting**: Controle de velocidade para evitar sobrecarga
 - **Suporte a Proxy**: Compatible com proxies HTTP
 - **Headers Customizados**: Suporte completo a headers HTTP
 - **Múltiplas Extensões**: Scanning automático com extensões configuráveis
 
-## 📦 Instalação
+## 📦 Installation
 
 ```bash
-# Clone o repositório
+# Clone the repository
 git clone <repository-url>
 cd preekeeper-scanner
 
-# Instale as dependências
+# Install dependencies
 go mod tidy
+# Requirement for technology detection:
+go get github.com/projectdiscovery/wappalyzergo
 
-# Compile o projeto
+# Build the project
 go build -o preekeeper main.go
 ```
 
@@ -48,6 +51,9 @@ go build -o preekeeper main.go
 ```
 
 ## 🛠️ Parâmetros Completos
+| `-T, --tech` | - | Detectar tecnologias do alvo (Wappalyzer) | `--tech` |
+# Detectar tecnologias do alvo
+./preekeeper -u http://example.com --tech
 
 ### Parâmetros Obrigatórios
 | Flag | Descrição | Exemplo |
@@ -126,6 +132,10 @@ go build -o preekeeper main.go
 - **Cinza-Bege** (#b4b2a7) - Outras respostas
 
 ## 📝 Exemplos Avançados
+### Descoberta de Tecnologias
+```bash
+./preekeeper -u http://example.com --tech
+```
 
 ### Scanning com Autenticação
 ```bash
