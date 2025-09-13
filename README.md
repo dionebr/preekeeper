@@ -127,6 +127,7 @@ go build -o preekeeper main.go
 - **`q`** - Quit application
 - **`↑/k`** - Scroll up in results
 - **`↓/j`** - Scroll down in results
+- **`t`** - Toggle view for detected technologies (appears when `--tech` is used or technologies are available)
 
 ### Status Filters
 - **`1`** - Show only 2xx responses (Success)
@@ -147,6 +148,9 @@ go build -o preekeeper main.go
 ```bash
 ./preekeeper -u http://example.com --tech
 ```
+
+When `--tech` is used the scanner will attempt to detect server/framework/OS information for the target.
+The detected technologies are stored and can be toggled in the TUI with the `t` key after a scan completes or when the scan is paused.
 
 ### Scanning with Authentication
 ```bash

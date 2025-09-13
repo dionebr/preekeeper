@@ -31,6 +31,10 @@ Tech detection
 ./preekeeper -u http://example.com -w wordlist.txt -T
 ```
 
+When using `-T`/`--tech` the tool will attempt to detect technologies after the scan finishes. Additionally, if you pause the scan with `p`, detection will run immediately and results will be available in the TUI.
+
+You can toggle the detected technologies view in the TUI with the `t` key once results are available.
+
 Recursive scan
 ```bash
 ./preekeeper -u http://example.com -w wordlist.txt -r -d 3

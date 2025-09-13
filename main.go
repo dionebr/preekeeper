@@ -53,6 +53,7 @@ type Config struct {
 	Silent      bool
 	Verbose     bool
 	OutputFile  string
+	TechDetect  bool
 }
 
 // Result estrutura
@@ -117,6 +118,9 @@ type Model struct {
 
 	// Wordlist
 	wordlist []string
+	// Detected technologies (populated after scan if enabled)
+	detectedTech map[string]string
+	showTech     bool
 }
 
 // Estilos com paleta personalizada
@@ -203,7 +207,13 @@ func (a *techEngineAdapter) Fingerprint(header http.Header, body []byte) map[str
 
 	out := make(map[string]string)
 	for k := range res {
-		out[k] = ""
+		// keys are formatted as "App" or "App:version"
+		if strings.Contains(k, ":") {
+			parts := strings.SplitN(k, ":", 2)
+			out[parts[0]] = parts[1]
+		} else {
+			out[k] = ""
+		}
 	}
 	return out
 }
@@ -346,6 +356,27 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.state == stateScanning {
 			m.state = statePaused
 			close(m.stopChannel)
+			// If tech detection is enabled, run detection now and store results for UI
+			if m.config != nil && m.config.TechDetect && (m.detectedTech == nil || len(m.detectedTech) == 0) {
+				go func() {
+					tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: m.config.NoTLS}}
+					if m.config.Proxy != "" {
+						if pu, err := neturl.Parse(m.config.Proxy); err == nil {
+							tr.Proxy = http.ProxyURL(pu)
+						}
+					}
+					client := &http.Client{Transport: tr, Timeout: time.Duration(m.config.Timeout) * time.Second}
+					resp, err := client.Get(m.config.URL)
+					if err == nil {
+						body, err := io.ReadAll(resp.Body)
+						resp.Body.Close()
+						if err == nil {
+							engine := &TechFingerprint{}
+							m.detectedTech = engine.Fingerprint(resp.Header, body)
+						}
+					}
+				}()
+			}
 		} else if m.state == statePaused {
 			m.state = stateScanning
 			m.stopChannel = make(chan bool)
@@ -360,6 +391,12 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "h":
 		m.showHelp = !m.showHelp
+
+	case "t":
+		// toggle technology view if we have results or tech detection was enabled
+		if m.detectedTech != nil && len(m.detectedTech) > 0 {
+			m.showTech = !m.showTech
+		}
 
 	case "up", "k":
 		if m.scrollOffset > 0 {
@@ -487,6 +524,29 @@ func (m *Model) runScanner() {
 
 	// Wait for workers to finish
 	m.workers.Wait()
+
+	// After scanning completes, if technology detection flag was set, run detection
+	if m.config != nil && m.config.TechDetect {
+		// perform a simple HTTP GET using net/http respecting timeout
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: m.config.NoTLS},
+		}
+		if m.config.Proxy != "" {
+			if pu, err := neturl.Parse(m.config.Proxy); err == nil {
+				tr.Proxy = http.ProxyURL(pu)
+			}
+		}
+		client := &http.Client{Transport: tr, Timeout: time.Duration(m.config.Timeout) * time.Second}
+		resp, err := client.Get(m.config.URL)
+		if err == nil {
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err == nil {
+				engine := &TechFingerprint{}
+				m.detectedTech = engine.Fingerprint(resp.Header, body)
+			}
+		}
+	}
 }
 
 func (m *Model) produceJobs() {
@@ -652,6 +712,20 @@ func (m *Model) View() string {
 	// Results
 	b.WriteString(m.renderResults())
 
+	// Detected technologies view (toggle with 't')
+	if m.showTech && m.detectedTech != nil && len(m.detectedTech) > 0 {
+		var tb strings.Builder
+		tb.WriteString(HeaderStyle.Render("Detected Technologies:") + "\n")
+		for tech, version := range m.detectedTech {
+			if version != "" {
+				tb.WriteString(InfoStyle.Render(fmt.Sprintf("- %s %s", tech, version)) + "\n")
+			} else {
+				tb.WriteString(InfoStyle.Render(fmt.Sprintf("- %s", tech)) + "\n")
+			}
+		}
+		b.WriteString("\n" + tb.String())
+	}
+
 	// Controls
 	b.WriteString(m.renderControls())
 
@@ -794,6 +868,11 @@ func (m *Model) renderControls() string {
 
 	if len(m.results) > 0 {
 		controls = append(controls, "↑↓: Scroll", "1-5: Filter by status")
+	}
+
+	// Show tech toggle if detection is enabled or we have detected tech
+	if (m.config != nil && m.config.TechDetect) || (m.detectedTech != nil && len(m.detectedTech) > 0) {
+		controls = append(controls, "t: Toggle detected technologies")
 	}
 
 	return InfoStyle.Render("\nControls: " + strings.Join(controls, " | "))
@@ -963,6 +1042,7 @@ func runScanner(cmd *cobra.Command, args []string) {
 		Silent:      silent,
 		Verbose:     verbose,
 		OutputFile:  outputFile,
+		TechDetect:  techDetect,
 	}
 	// Additional validations
 	if cfg.Threads > 100 {
@@ -976,7 +1056,8 @@ func runScanner(cmd *cobra.Command, args []string) {
 	if techDetect {
 		fmt.Println("\n[+] Detecting target technologies...")
 		detectarTecnologias(cfg)
-		fmt.Println("--------------------------------------\n")
+		fmt.Println("--------------------------------------")
+		fmt.Println() // This line is added to maintain the spacing if needed
 	}
 
 	// Create model and start TUI
